@@ -10,34 +10,21 @@ import (
 	"time"
 )
 
-//{
-//    "data": [
-//        {
-//            "starttime": 3,
-//            "GPU": 8,
-//            "lasttime": 5
-//        },
-//        {
-//            "starttime": 3,
-//            "GPU": 8,
-//            "lasttime": 5
-//        }
-//    ]
-//}
-
 const (
 	imageName = "registry.sensetime.com/cloudnative4ai/nvidia/cuda-vector-add"
+	schedulerName = "sense-rubber"
 )
 
 type TraceEntry struct {
 	Data []Data `json:"data"`
 }
 type Data struct {
-	Index       int
-	ImageName	string
-	StartTime   int `json:"startTime"`
-	GpuCnt      int `json:"gpuCnt"`
-	RunningTime int `json:"runningTime"`
+	Index       	int
+	ImageName		string
+	SchedulerName	string
+	StartTime   	int `json:"startTime"`
+	GpuCnt      	int `json:"gpuCnt"`
+	RunningTime 	int `json:"runningTime"`
 }
 
 var jobYamlTmpl = `apiVersion: v1
@@ -46,6 +33,7 @@ metadata:
   name: job-dispatcher-test-{{.Index}}
 spec:
   restartPolicy: OnFailure
+  schedulerName: {{.SchedulerName}}
   containers:
   - name: cuda-vector-add
     image: {{.ImageName}}
@@ -125,6 +113,7 @@ func main() {
 			i, v.StartTime, v.GpuCnt, v.RunningTime)
 		v.Index = i
 		v.ImageName = imageName
+		v.SchedulerName = schedulerName
 		wg.Add(1)
 		go singleDispatcher(&wg, v)
 	}
