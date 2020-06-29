@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 	"os/exec"
@@ -25,7 +26,7 @@ import (
 //}
 
 const (
-	imageName = "registry.sensetime.com/cloudnative122ai/nvidia/cuda-vector-add"
+	imageName = "registry.sensetime.com/cloudnative4ai/nvidia/cuda-vector-add"
 )
 
 type TraceEntry struct {
@@ -52,45 +53,46 @@ spec:
     resources:
       limits:
         nvidia.com/gpu: {{.GpuCnt}}
-    volumeMounts:
-      - mountPath: /dev/shm
-        subPath: shm
-        name: dev
     command: ["sleep"]
     args: ["{{.RunningTime}}s"]
 `
 
-func dispatchJob(entry Data) error {
+func dispatchJob(entry Data) (string, error) {
+	buf := new(bytes.Buffer)
+	tmpl, err := template.New("jobYaml").Parse(jobYamlTmpl)
+	if err != nil {
+		return "", err
+	}
+	err = tmpl.Execute(buf, entry)
+	if err != nil {
+		return "", err
+	}
+
 	cmd := exec.Command("kubectl", "create", "-f", "-")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	tmpl, err := template.New("jobYaml").Parse(jobYamlTmpl)
-	if err != nil {
-		return err
-	}
-	err = tmpl.Execute(stdin, entry)
-	if err != nil {
-		return err
-	}
+	_, _ = stdin.Write(buf.Bytes())
+	_ = stdin.Close()
 
-	if out, err := cmd.CombinedOutput(); err != nil {
-		return err
-	} else {
-		log.Println(out)
+	out, err := cmd.CombinedOutput();
+	if err != nil {
+		return "", err
 	}
-	return nil
+	return string(out), nil
 }
 
 func singleDispatcher(wg *sync.WaitGroup, entry Data) {
 	defer wg.Done()
 	time.Sleep(time.Duration(entry.StartTime) * time.Second)
 	log.Printf("dispatch job %d at %d\n", entry.Index, entry.StartTime)
-	err := dispatchJob(entry)
+	out, err := dispatchJob(entry)
 	if err != nil {
-		log.Printf("dispatch job %d failed: %s\n", entry.Index, err)
+		log.Printf("dispatch job %d failed: %s; %s\n", entry.Index, err, out)
+	} else {
+		log.Printf("dispatch job %d success: %s", entry.Index, out)
 	}
 }
 
