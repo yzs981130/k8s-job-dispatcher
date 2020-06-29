@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"flag"
+	"io/ioutil"
 	"log"
 	"os/exec"
 	"sync"
@@ -45,7 +47,15 @@ spec:
     args: ["{{.RunningTime}}s"]
 `
 
+// trace
+var traceEntries TraceEntry
+// filepath
+var filePath string
+
+
+// generate k8s yaml & call kubectl to create
 func dispatchJob(entry Data) (string, error) {
+	// generate k8s yaml, store in buf
 	buf := new(bytes.Buffer)
 	tmpl, err := template.New("jobYaml").Parse(jobYamlTmpl)
 	if err != nil {
@@ -56,15 +66,17 @@ func dispatchJob(entry Data) (string, error) {
 		return "", err
 	}
 
+	// call kubectl, using pipe to pass yaml
+	// build args
 	cmd := exec.Command("kubectl", "create", "-f", "-")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return "", err
 	}
-
 	_, _ = stdin.Write(buf.Bytes())
 	_ = stdin.Close()
 
+	// exec kubectl
 	out, err := cmd.CombinedOutput();
 	if err != nil {
 		return "", err
@@ -72,6 +84,7 @@ func dispatchJob(entry Data) (string, error) {
 	return string(out), nil
 }
 
+// goroutine worker: trigger when startTime ticks
 func singleDispatcher(wg *sync.WaitGroup, entry Data) {
 	defer wg.Done()
 	time.Sleep(time.Duration(entry.StartTime) * time.Second)
@@ -84,30 +97,28 @@ func singleDispatcher(wg *sync.WaitGroup, entry Data) {
 	}
 }
 
-func main() {
-	log.Println("start")
-	var wg sync.WaitGroup
+func buildArgs() string {
+	flag.StringVar(&filePath,"trace", "traces.json", "`path` to trace file")
+	flag.Parse()
 
-	inputString := `{
-	  "data": [
-		{
-		  "startTime": 3,
-		  "gpuCnt": 8,
-		  "runningTime": 5
-		},
-		{
-		  "startTime": 8,
-		  "gpuCnt": 2,
-		  "runningTime": 7
-		}
-	  ]
-	}`
+	b, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return string(b)
+}
+
+func parseTrace(inputString string) {
 	inputData := []byte(inputString)
-	var traceEntries TraceEntry
 	err := json.Unmarshal(inputData, &traceEntries)
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+// wait until all worker dispatch
+func launchJob() {
+	var wg sync.WaitGroup
 	for i, v := range traceEntries.Data {
 		log.Printf("load job %d: startTime %d, gpuCnt %d, runningTime %d\n",
 			i, v.StartTime, v.GpuCnt, v.RunningTime)
@@ -118,5 +129,12 @@ func main() {
 		go singleDispatcher(&wg, v)
 	}
 	wg.Wait()
+}
+
+func main() {
+	log.Println("start")
+	s := buildArgs()
+	parseTrace(s)
+	launchJob()
 	log.Println("end")
 }
