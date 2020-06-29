@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
+	"os"
 	"os/exec"
 	"sync"
 	"text/template"
@@ -49,9 +51,10 @@ spec:
 
 // trace
 var traceEntries TraceEntry
-// filepath
+// trace filepath
 var filePath string
-
+// delete script
+var deleteScriptHandler *os.File
 
 // generate k8s yaml & call kubectl to create
 func dispatchJob(entry Data) (string, error) {
@@ -97,9 +100,15 @@ func singleDispatcher(wg *sync.WaitGroup, entry Data) {
 	}
 }
 
-func buildArgs() string {
+func initFunc() string {
 	flag.StringVar(&filePath,"trace", "traces.json", "`path` to trace file")
 	flag.Parse()
+
+	var err error
+	deleteScriptHandler, err = os.OpenFile("delete.sh", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0755)
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	b, err := ioutil.ReadFile(filePath)
 	if err != nil {
@@ -118,10 +127,16 @@ func parseTrace(inputString string) {
 
 // wait until all worker dispatch
 func launchJob() {
+	defer deleteScriptHandler.Close()
 	var wg sync.WaitGroup
 	for i, v := range traceEntries.Data {
 		log.Printf("load job %d: startTime %d, gpuCnt %d, runningTime %d\n",
 			i, v.StartTime, v.GpuCnt, v.RunningTime)
+
+		deleteCmd := fmt.Sprintf("kubectl delete pod job-dispatcher-test-%d\n", i)
+		_, _ = deleteScriptHandler.WriteString(deleteCmd)
+		_ = deleteScriptHandler.Sync()
+
 		v.Index = i
 		v.ImageName = imageName
 		v.SchedulerName = schedulerName
@@ -133,7 +148,7 @@ func launchJob() {
 
 func main() {
 	log.Println("start")
-	s := buildArgs()
+	s := initFunc()
 	parseTrace(s)
 	launchJob()
 	log.Println("end")
