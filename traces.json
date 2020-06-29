@@ -6,9 +6,9 @@
       "runningTime": 5
     },
     {
-      "startTime": 3,
-      "gpuCnt": 8,
-      "runningTime": 5
+      "startTime": 8,
+      "gpuCnt": 2,
+      "runningTime": 7
     }
   ]
 }
