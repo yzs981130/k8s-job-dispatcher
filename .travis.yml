@@ -1,0 +1,16 @@
+language: go
+go:
+ - 1.14
+
+script:
+- go build
+
+deploy:
+  provider: releases
+  api_key: $GITHUB_ACCESS_TOKEN
+  skip_cleanup: true
+  file_glob: true
+  file: k8s-job-dispatcher
+  on:
+    repo: yzs981130/k8s-job-dispatcher
+    tags: true
