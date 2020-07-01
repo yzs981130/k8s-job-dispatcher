@@ -31,22 +31,31 @@ type Data struct {
 	RunningTime 	int `json:"runningTime"`
 }
 
-var jobYamlTmpl = `apiVersion: v1
-kind: Pod
+var jobYamlTmpl = `apiVersion: batch/v1
+kind: Job
 metadata:
   name: job-dispatcher-test-{{.Index}}
 spec:
-  restartPolicy: OnFailure
-  schedulerName: {{.SchedulerName}}
-  containers:
-  - name: cuda-vector-add
-    image: {{.ImageName}}
-    imagePullPolicy: Always
-    resources:
-      limits:
-        nvidia.com/gpu: {{.GpuCnt}}
-    command: ["sleep"]
-    args: ["{{.RunningTime}}s"]
+  backoffLimit: 1
+  completions: {{.GpuCnt}}
+  parallelism: {{.GpuCnt}}
+  template:
+    metadata:
+      annotations:
+        scheduling.k8s.io/group-name: job-dispatcher-test-{{.Index}}
+    spec:
+      containers:
+      - image: {{.ImageName}}
+        imagePullPolicy: IfNotPresent
+        name: cuda-vector-add
+        command: ["/bin/sh","-c"]
+        args: [sleep {{.RunningTime}}"]
+        resources:
+          limits:
+            nvidia.com/gpu: 1
+      restartPolicy: Never
+      schedulerName: {{.SchedulerName}}
+      ttlSecondsAfterFinished: 10
 `
 
 // trace
@@ -133,7 +142,7 @@ func launchJob() {
 		log.Printf("load job %d: startTime %d, gpuCnt %d, runningTime %d\n",
 			i, v.StartTime, v.GpuCnt, v.RunningTime)
 
-		deleteCmd := fmt.Sprintf("kubectl delete pod job-dispatcher-test-%d\n", i)
+		deleteCmd := fmt.Sprintf("kubectl delete job job-dispatcher-test-%d\n", i)
 		_, _ = deleteScriptHandler.WriteString(deleteCmd)
 		_ = deleteScriptHandler.Sync()
 
