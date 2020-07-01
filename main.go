@@ -81,7 +81,6 @@ func dispatchJob(entry Data) (string, error) {
 		return "", err
 	}
 
-	fmt.Println(buf.String())
 	// call kubectl, using pipe to pass yaml
 	// build args
 	cmd := exec.Command("kubectl", "create", "-f", "-")
