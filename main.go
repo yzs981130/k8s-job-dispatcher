@@ -39,6 +39,7 @@ spec:
   backoffLimit: 1
   completions: {{.GpuCnt}}
   parallelism: {{.GpuCnt}}
+  ttlSecondsAfterFinished: 10
   template:
     metadata:
       annotations:
@@ -55,7 +56,6 @@ spec:
             nvidia.com/gpu: 1
       restartPolicy: Never
       schedulerName: {{.SchedulerName}}
-      ttlSecondsAfterFinished: 10
 `
 
 // trace
@@ -78,6 +78,7 @@ func dispatchJob(entry Data) (string, error) {
 		return "", err
 	}
 
+	fmt.Println(buf.String())
 	// call kubectl, using pipe to pass yaml
 	// build args
 	cmd := exec.Command("kubectl", "create", "-f", "-")
