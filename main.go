@@ -56,7 +56,7 @@ spec:
         args: [sleep {{.RunningTime}}"]
         resources:
           limits:
-            nvidia.com/gpu: 1
+            nvidia.com/gpu: {{.GpuCnt}}
       restartPolicy: Never
       schedulerName: {{.SchedulerName}}
 `
