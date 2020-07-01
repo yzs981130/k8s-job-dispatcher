@@ -59,6 +59,17 @@ spec:
             nvidia.com/gpu: {{.GpuCnt}}
       restartPolicy: Never
       schedulerName: {{.SchedulerName}}
+---
+apiVersion: scheduling.incubator.k8s.io/v1alpha1
+kind: PodGroup
+metadata:
+  name: job-dispatcher-test-{{.Index}}
+spec:
+  minMember: {{.PodCnt}}
+  #priorityClassName: master-pri
+  #block: true
+  #preemptible: true
+  #topologyGPU: true
 `
 
 // trace
@@ -137,6 +148,13 @@ func parseTrace(inputString string) {
 	}
 }
 
+// print podgroup delete script to the end of delete.sh
+func printDeleteScript() {
+	deleteCmd := "kubectl delete podgroup $(kubectl get podgroup | grep job-dispatcher-test |awk '{print$1}') --grace-period=0 --force"
+	_, _ = deleteScriptHandler.WriteString(deleteCmd)
+	_ = deleteScriptHandler.Sync()
+}
+
 // wait until all worker dispatch
 func launchJob() {
 	defer deleteScriptHandler.Close()
@@ -159,6 +177,7 @@ func launchJob() {
 		wg.Add(1)
 		go singleDispatcher(&wg, v)
 	}
+	printDeleteScript()
 	wg.Wait()
 }
 
