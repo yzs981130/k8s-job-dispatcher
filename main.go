@@ -53,7 +53,7 @@ spec:
         imagePullPolicy: IfNotPresent
         name: cuda-vector-add
         command: ["/bin/sh","-c"]
-        args: [sleep {{.RunningTime}}"]
+        args: ["sleep {{.RunningTime}}"]
         resources:
           limits:
             nvidia.com/gpu: {{.GpuCnt}}
