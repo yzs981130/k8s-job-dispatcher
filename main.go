@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"math"
 	"os"
 	"os/exec"
 	"sync"
@@ -17,6 +18,7 @@ import (
 const (
 	imageName = "registry.sensetime.com/cloudnative4ai/nvidia/cuda-vector-add"
 	schedulerName = "sense-rubber"
+	maxGpuCnt = 8
 )
 
 type TraceEntry struct {
@@ -26,6 +28,7 @@ type Data struct {
 	Index       	int
 	ImageName		string
 	SchedulerName	string
+	PodCnt			int
 	StartTime   	int `json:"startTime"`
 	GpuCnt      	int `json:"gpuCnt"`
 	RunningTime 	int `json:"runningTime"`
@@ -37,8 +40,8 @@ metadata:
   name: job-dispatcher-test-{{.Index}}
 spec:
   backoffLimit: 1
-  completions: {{.GpuCnt}}
-  parallelism: {{.GpuCnt}}
+  completions: {{.PodCnt}}
+  parallelism: {{.PodCnt}}
   ttlSecondsAfterFinished: 10
   template:
     metadata:
@@ -150,6 +153,10 @@ func launchJob() {
 		v.Index = i
 		v.ImageName = imageName
 		v.SchedulerName = schedulerName
+		v.PodCnt = int(math.Ceil(float64(v.GpuCnt) / maxGpuCnt))
+		if v.GpuCnt > maxGpuCnt {
+			v.GpuCnt = maxGpuCnt
+		}
 		wg.Add(1)
 		go singleDispatcher(&wg, v)
 	}
