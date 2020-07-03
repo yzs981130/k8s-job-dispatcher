@@ -83,6 +83,8 @@ var filePath string
 var deleteScriptHandler *os.File
 // use json filename as partition name
 var partitionName string
+// use single GPU pod mode
+var enableSingleGPU bool
 
 // generate k8s yaml & call kubectl to create
 func dispatchJob(entry Data) (string, error) {
@@ -130,6 +132,7 @@ func singleDispatcher(wg *sync.WaitGroup, entry Data) {
 
 func initFunc() string {
 	flag.StringVar(&filePath,"trace", "traces.json", "`path` to trace file")
+	flag.BoolVar(&enableSingleGPU, "single", false, "set `true` to force use per pod single GPU mode")
 	flag.Parse()
 
 	var err error
@@ -176,9 +179,14 @@ func launchJob() {
 		v.Index = i
 		v.ImageName = imageName
 		v.SchedulerName = schedulerName
-		v.PodCnt = int(math.Ceil(float64(v.GpuCnt) / maxGpuCnt))
-		if v.GpuCnt > maxGpuCnt {
-			v.GpuCnt = maxGpuCnt
+		if enableSingleGPU {
+			v.PodCnt = v.GpuCnt
+			v.GpuCnt = 1
+		} else {
+			v.PodCnt = int(math.Ceil(float64(v.GpuCnt) / maxGpuCnt))
+			if v.GpuCnt > maxGpuCnt {
+				v.GpuCnt = maxGpuCnt
+			}
 		}
 		v.PartitionName = partitionName
 		wg.Add(1)
