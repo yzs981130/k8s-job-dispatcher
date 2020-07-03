@@ -121,7 +121,8 @@ func dispatchJob(entry Data) (string, error) {
 func singleDispatcher(wg *sync.WaitGroup, entry Data) {
 	defer wg.Done()
 	time.Sleep(time.Duration(entry.StartTime) * time.Second)
-	log.Printf("dispatch job %d at %d\n", entry.Index, entry.StartTime)
+	log.Printf("dispatch job job-dispatcher-test-%s-%d [%d pods * %d GPU] at %d\n",
+		entry.PartitionName, entry.Index, entry.PodCnt, entry.GpuCnt, entry.StartTime)
 	out, err := dispatchJob(entry)
 	if err != nil {
 		log.Printf("dispatch job %d failed: %s; %s\n", entry.Index, err, out)
@@ -132,8 +133,10 @@ func singleDispatcher(wg *sync.WaitGroup, entry Data) {
 
 func initFunc() string {
 	flag.StringVar(&filePath,"trace", "traces.json", "`path` to trace file")
-	flag.BoolVar(&enableSingleGPU, "single", false, "set `true` to force use per pod single GPU mode")
+	flag.BoolVar(&enableSingleGPU, "single",
+		false, "set `true` to force use per pod single GPU mode")
 	flag.Parse()
+	log.Printf("using trace %s with enableSingleGPU %v\n", path.Base(filePath), enableSingleGPU)
 
 	var err error
 	deleteScriptHandler, err = os.OpenFile("delete.sh", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0755)
