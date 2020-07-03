@@ -10,6 +10,8 @@ import (
 	"math"
 	"os"
 	"os/exec"
+	"path"
+	"strings"
 	"sync"
 	"text/template"
 	"time"
@@ -28,6 +30,7 @@ type Data struct {
 	Index       	int
 	ImageName		string
 	SchedulerName	string
+	PartitionName	string
 	PodCnt			int
 	StartTime   	int `json:"startTime"`
 	GpuCnt      	int `json:"gpuCnt"`
@@ -37,7 +40,7 @@ type Data struct {
 var jobYamlTmpl = `apiVersion: batch/v1
 kind: Job
 metadata:
-  name: job-dispatcher-test-{{.Index}}
+  name: job-dispatcher-test-{{.PartitionName}}-{{.Index}}
 spec:
   backoffLimit: 1
   completions: {{.PodCnt}}
@@ -46,7 +49,7 @@ spec:
   template:
     metadata:
       annotations:
-        scheduling.k8s.io/group-name: job-dispatcher-test-{{.Index}}
+        scheduling.k8s.io/group-name: job-dispatcher-test-{{.PartitionName}}-{{.Index}}
     spec:
       containers:
       - image: {{.ImageName}}
@@ -63,7 +66,7 @@ spec:
 apiVersion: scheduling.incubator.k8s.io/v1alpha1
 kind: PodGroup
 metadata:
-  name: job-dispatcher-test-{{.Index}}
+  name: job-dispatcher-test-{{.PartitionName}}-{{.Index}}
 spec:
   minMember: {{.PodCnt}}
   #priorityClassName: master-pri
@@ -78,6 +81,8 @@ var traceEntries TraceEntry
 var filePath string
 // delete script
 var deleteScriptHandler *os.File
+// use json filename as partition name
+var partitionName string
 
 // generate k8s yaml & call kubectl to create
 func dispatchJob(entry Data) (string, error) {
@@ -137,6 +142,7 @@ func initFunc() string {
 	if err != nil {
 		log.Fatal(err)
 	}
+	partitionName = strings.TrimSuffix(path.Base(filePath), path.Ext(filePath))
 	return string(b)
 }
 
@@ -174,6 +180,7 @@ func launchJob() {
 		if v.GpuCnt > maxGpuCnt {
 			v.GpuCnt = maxGpuCnt
 		}
+		v.PartitionName = partitionName
 		wg.Add(1)
 		go singleDispatcher(&wg, v)
 	}
